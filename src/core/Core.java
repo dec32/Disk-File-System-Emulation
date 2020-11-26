@@ -1,0 +1,606 @@
+package core;
+
+import java.util.ArrayList;
+
+
+public class Core {
+
+	private Disk disk;
+	private DirItem curDirItem = new DirItem();// 保存当前打开的目录的目录项
+	private byte[] curDir = new byte[64];// 保存当前打开的目录
+	private String curPath = "/";	
+	private ArrayList<OpenedFile> openedFileList = new ArrayList<OpenedFile>();//已打开文件表
+
+	public Core() {
+		disk = new Disk();
+		disk.createDisk("D:/test.dsk");
+
+		// 使用绝对路径的命令
+		dir("/");
+		md("/123");
+		md("/123/456");
+		createFile("/123/456/abc.ef", "");//空串的意思是, 不选择任何选项(既不是系统文件, 也不是只读)
+		dir("/123");
+		// 使用相对路径的命令
+		dir("456");
+		md("789");
+		createFile("ghi.jk", "");
+		// 转到根目录
+		dir("/");
+	}
+
+	public void execute(String str) {
+		
+		/*
+		 * 示范:
+		 * dir /123 (转到 /123 下)
+		 * dir 456 (转到 456 下)
+		 * create kkk.kk (创建一个普通文件)
+		 * create -s kkk.kk (创建一个系统文件)
+		 * create -r -s kkk.kk(创建一个只读的系统文件)
+		 * open -r kkk.kk(以只读方式打开文件, -r 代表"read only")
+		 * open kkk.kk(打开文件, 可以写也可以读)
+		 */
+
+		// 提供字符串形式的一行命令, 新建一个 CommandLine 对象, 构造方法会解析选项和参数
+		CommandLine cl = new CommandLine(str);
+		String command = cl.getCommand();
+		String opts = cl.getOpts();
+		String[] args = cl.getArgs();
+		
+//		System.out.println("command: "+command);
+//		System.out.println("opts: "+opts);
+//		System.out.print("args: ");
+//		for(String s:args)
+//		{
+//			System.out.print(s+" ");
+//		}
+//		System.out.println();
+		
+		
+		/*
+		 * if-else nightmare, try to re-write this part
+		 */
+		if (command.equals("open")) {
+			openFile(args[0], opts);// args0 为路径, 命令中唯一的参数, 下同
+		} else if (command.equals("close")) {
+			closeFile(args[0]); 
+		} else if (command.equals("dir")) {
+			dir(args[0]);// dir 命令只有一个参数, 路径
+		} else if (command.equals("write")) {
+			writeFile(args[0],args[1]);
+		} else if (command.equals("read")) {
+			readFile(args[0], Integer.valueOf(args[1]));
+		} else if (command.equals("type")) {
+			typeFile(args[0]);
+		} else if (command.equals("change")) {
+			// i don't really know what the fuck is change
+		} else if (command.equals("create")) {
+			createFile(args[0], opts);// create 命令只有一个参数, 路径. 选项会有-r和-s
+		} else if (command.equals("md")) {
+			md(args[0]);// md 命令只有一个参数, 路径
+		} else if (command.equals("delete")) {
+
+		} else if (command.equals("rd")) {
+
+		} else {
+			System.out.println("Syntax error you dumbass");
+		}
+
+	}
+
+
+
+	// 返回给定目录或文件的目录项(只能处理绝对路径(以'/'开头))
+	private DirItem findDirItem(String pathname) {
+		String[] names = pathname.split("/"); // 拆解路径, 形如"/a/b/c"的字符串, 会被拆解为"", "a", "b", "c"(含空字符串)
+		String fullname = Util.getFullName(pathname);// 目标文件的完整名字
+		byte[] curDir = new byte[64];
+		// 从根目录開始查询
+		DirItem di = DirItem.createRootDirItem();
+
+		disk.read(di.getBlockNum());
+		Util.copyBlock(disk.getReader(), curDir);// 首先读入根目录的内容
+
+		// 根据每一级的文件夹名(或文件名), 一层一层往下搜索, names[0] 为空字符串, 所以直接从names[1] 开始遍历
+		for (int i = 1; i < names.length; i++) {
+			// 遍历当前目录的8个目录项，j为项指针
+			boolean found = false;
+			for (int j = 0; j < 8; j++) {
+				di = Util.getDirItemAt(curDir, j);// 从reader中取出第j个目录项
+				if (di.getFullName().equals(names[i])) {// 目录项和路径指定的目录同名, 转到此目录下
+					// 注: 如果di指向的是一个文件, 那么文件的第一个块会被写到curDir里面, 不过不影响程序执行
+					disk.read(di.getBlockNum());
+					Util.copyBlock(disk.getReader(), curDir);
+					found = true;
+					break;
+				}
+			}
+			if (!found) {
+				System.out.println("findDirItem没有找到该文件");
+				return null;// 找不到文件夹，终止方法
+			}
+		}
+		return di;
+	}
+
+	// 返回父目录的目录项(只能处理绝对路径(以'/'开头))
+	private DirItem findSuperDirItem(String pathname) {
+		String[] names = pathname.split("/"); // 拆解路径, 形如"/a/b/c"的字符串, 会被拆解为"", "a", "b", "c"(含空字符串)
+		byte[] curDir = new byte[64];
+		// 从根目录開始查询
+		DirItem di = DirItem.createRootDirItem();
+
+		disk.read(di.getBlockNum());
+		Util.copyBlock(disk.getReader(), curDir);// 首先读入根目录的内容
+
+		// 针对每一级目录的循环, names[0] 为空字符串, 所以直接从names[1] 开始遍历
+		for (int i = 1; i < names.length - 1; i++) {
+			// 遍历当前目录的8个目录项，j为项指针
+			boolean found = false;
+			for (int j = 0; j < 8; j++) {
+				di = Util.getDirItemAt(curDir, j);// 从reader中取出第j个目录项
+				if (di.getName().equals(names[i]) && di.isDir()) {// 如果目录项为文件夹，且和路径指定的文件夹同名，则转到这个文件夹
+					disk.read(di.getBlockNum());
+					Util.copyBlock(disk.getReader(), curDir);
+					found = true;
+					break;
+				}
+			}
+			if (!found) {
+				return null;// 找不到文件夹，终止方法
+			}
+		}
+		return di;
+	}
+
+	public boolean createFile(String pathname, String opts) {
+		// opts 中可能有的选项有 -r 和 -s, 前者表示只读, 后者表示系统
+		String filename = Util.getName(pathname);
+		String type = Util.getType(pathname);
+		DirItem superDirItem;// 父目录项
+		byte[] superDir = new byte[64];// 父目录
+
+		if (pathname.charAt(0) == '/') {
+			// 若提供的是绝对路径, 则需要查找父目录
+			superDirItem = findSuperDirItem(pathname);
+			if (superDirItem == null) {
+				return false;
+			}
+			// else System.out.println("绝对路径存在");
+		} else {
+			// 若提供的是相对路径, 则父目录就是当前打开的目录
+			superDirItem = curDirItem;
+		}
+
+		// 把父目录的内容读取到缓存中, 并复制出来
+		disk.read(superDirItem.getBlockNum());
+		Util.copyBlock(disk.getReader(), superDir);
+
+		// 查找父目录中有没有重名文件
+		DirItem di;
+		for (int i = 0; i < 8; i++) {
+			di = Util.getDirItemAt(superDir, i);// 从父目录中取出第i个目录项
+			if (di.getName().equals(filename) && di.getType().equals(type) && !di.isDir()) {
+				System.out.println("存在重名文件。");
+				return false;// 有重名文件，终止方法
+			}
+		}
+
+		// 寻找一个空位把新文件的目录项放进去
+		for (int i = 0; i < 8; i++) {
+			di = Util.getDirItemAt(superDir, i);// 从reader中取出第i个目录项
+			if (di.getName().equals("")) {// 第i个位置为空，空位置的文件名为空字符串
+
+				// 建立新文件的目录项
+				di.setName(filename);// 设置名字
+				di.setType(type);// 设置类型
+
+				// 设置属性
+				boolean ro = false;
+				boolean sys = false;
+				if(opts.contains("r")) {
+					ro = true;
+				}
+				if(opts.contains("s")) {
+					sys = true;
+				}
+				di.setProperty(ro, sys, false);// 最后一个false表示这是个一个文件而不是一个目录
+
+				int availableBlock;
+				availableBlock = Util.findAvailableBlock(disk);// 找到一个空闲块
+				di.setBlockNum(availableBlock);// 设置要占用的磁盘块
+				di.setSize(0);// 设置文件大小，初始为0字节
+
+				Util.writeDirItem(di, superDirItem.getBlockNum(), i, disk);// 把目录项写到找到的空位之中
+				Util.writeFat(availableBlock, 255, disk);// 更新FAT
+				break;
+			}
+		}
+		updateCurDir();//因为可能是在当前目录新建了一个文件, 所以刷新一下
+		return true;
+	}
+
+	public boolean openFile(String pathname, String opts) { // 这里的flag表示操作类型，flag名字来源于已打开文件表介绍
+		
+		/*
+		 * 传进来的pathname可能是相对路径, 也可能是绝对路径
+		 * 解决的办法是, 如果传进来的是相对路径, 我就把他转换成绝对路径
+		 * 绝对路径 = 当前路径+"/"+相对路径
+		 */
+
+		// *1检查文件是否存在,若不存在，则打开失败
+		// *2存在，检查打开方式flag是读还是写，和文件类型是否符合
+		// *3填写已打开文件表，若文件原本已经在已打开文件表，不需要重复填写
+
+		boolean flag = false;
+		// 查找父目录中有没有该文件
+		DirItem di;
+		byte[] bytes = new byte[8];
+		boolean flag1 = false;
+
+		String filename = Util.getName(pathname);
+		String type = Util.getType(pathname);
+		DirItem superDirItem;// 父目录项
+		byte[] superDir = new byte[64];// 父目录
+		if (pathname.charAt(0) == '/') {
+			// 若提供的是绝对路径, 则需要查找父目录
+			superDirItem = findSuperDirItem(pathname);
+			if (superDirItem == null) {
+				System.out.println("绝对路径不存在");
+				return false;
+			} else {
+
+				System.out.println("绝对路径存在");
+			}
+		} else {
+			// 若提供的是相对路径, 则父目录就是当前打开的目录
+			flag1 = true;
+			superDirItem = curDirItem;
+		}
+		disk.read(superDirItem.getBlockNum());
+		Util.copyBlock(disk.getReader(), superDir);
+
+		for (int i = 0; i < 8; i++) {
+			di = Util.getDirItemAt(superDir, i);// 从父目录中取出第i个目录项
+			if (di.getName().equals(filename) && di.getType().equals(type) && !di.isDir()) {
+				flag = true;
+				System.out.println("相对路径文件存在");
+				bytes = di.getBytes();
+				break;
+
+			}
+		}
+
+		if (!flag){
+			System.out.println("文件不存在！结束！");
+			//return false;
+		}
+
+
+		/// 以上判断了文件的绝对路径/相对路径是否在磁盘存在
+		/// 接下来判断在磁盘存在的文件是否在已打开文件表中
+
+
+        if(flag1 && flag){
+        	//需要修改pathname,防止再次打开
+			String temp = "/".concat(pathname);
+
+			System.out.println("temp:  "+temp);
+
+			pathname = curPath.concat(temp);
+			System.out.println("修改后的pathname: "+pathname);
+        }
+		boolean is_open = false;
+
+		if (flag) {/// 在磁盘中存在该文件
+			int property = bytes[5];
+			// byte[] bytes = di.getBytes();
+			if (property % 2 == 1 && !opts.contains("r")) { // 说明需要写只读文件
+				System.out.println("写只读文件，文件打开错误！");
+				return false;
+			} else {
+
+				// 判断是否在已打开文件表中存在
+				for (OpenedFile of : openedFileList) {
+					if (of.getPathname().equals(pathname)) {
+						System.out.println("文件在之前已打开");
+						is_open = true;
+						return true;
+
+					}
+				}
+
+				if (!is_open) { // 文件还没有打开，需要添加到已打开文件表中,需要先
+
+					OpenedFile newFile = new OpenedFile(); // 需要将打开文件信息记录在newFile中
+					// 这里需要将item的信息复制到newFile中去
+					newFile.setPathname(pathname);
+					if (opts.contains("r"))//文件只读
+						newFile.setFlag(0);
+					else
+						newFile.setFlag(1);
+					byte temp = bytes[5];
+					char attribute = (char) temp;
+
+					newFile.setAttribute(attribute);
+					int number = bytes[6];
+					newFile.setNumber(number);
+					int[] read1 = new int[2];
+					read1[0] = number;
+					read1[1] = 0;
+					newFile.setRead(read1);
+					/// 注意这里！！！！！！！！！！！！！
+					/// 第一次打开由于之前没有记录，初始化为0（目录项记录的是盘快数，不是文件占用字节数）
+					/// 同理，read[0]初始化为起始盘块，read[1]初始化为0
+					/// write[0]初始化为0，write[1]初始化为1
+
+					openedFileList.add(newFile);
+
+				}
+				// 说明文件已经打开
+				System.out.println("file opened");
+				return true;
+			}
+
+		}
+		return false;
+
+	}
+
+	public void readFile(String pathname, int length) {
+
+	}
+
+	public void writeFile(String pathname, String content) {
+
+	}
+
+	public boolean closeFile(String pathname) {
+
+		// *1先看文件是否在已打开文件表中
+		// *2已经打开，检查打开方式flag,
+		// *3如果flag==1，修改目录项，从已文件表中删除对应项
+		if (pathname.charAt(0) != '/') {
+			String temp = "/".concat(pathname);
+
+			System.out.println("temp:  "+temp);
+
+			pathname = curPath.concat(temp);
+			System.out.println("修改后的pathname: "+pathname);
+		}
+
+
+
+		DirItem item = findDirItem(pathname);
+		boolean isopen = false;
+
+		int flag = 0;
+		for (OpenedFile of : openedFileList) {
+			if (of.getPathname().equals(pathname)) {// 已经打开
+				isopen = true;
+				flag = of.getFlag();
+				break;
+			}
+		}
+		if (!isopen) {
+			System.out.println("文件并没有打开，无需关闭");
+			return false;
+		}
+		// 已经打开：
+		if (flag == 0) {
+			System.out.println("文件没有经过写操作");
+		}
+		// flag==1,文件经过修改，需要修改目录项，追加文件结束符‘#’
+		// ！！！！！！！！！
+		// 注意：文件结束符‘#’追加需要登这里的write函数实现时再写，这里就不
+
+		if (flag == 1) { // 文件经过写操作，需遍历找到文件所占用总盘块数
+
+			// 以下函数遍历找到文件所占用盘块数
+			byte[] readDisk = new byte[128];
+
+			disk.read(0);
+			System.arraycopy(disk.getReader(), 0, readDisk, 0, 64);
+			disk.read(1);
+			System.arraycopy(disk.getReader(), 0, readDisk, 64, 64);
+			int startNumber = item.getBytes()[6];
+			// System.out.println("startNumbe = " + startNumber);
+			// System.out.println(" readDisk[startNumbe] = "+readDisk[startNumber] );
+			int length = 0;
+
+			while (readDisk[startNumber] != 255 && readDisk[startNumber] != -1) {
+				length++;
+				startNumber = readDisk[startNumber];
+			}
+			// System.out.println("here");
+			item.setSize(length);
+		}
+
+		// 将文件从已打开文件表中删除
+		for (OpenedFile of : openedFileList) {
+			if (of.getPathname().equals(pathname)) {
+				// System.out.println("文件已打开");
+				System.out.println("未删前长度" + openedFileList.size());
+				openedFileList.remove(of);
+				System.out.println("删除后长度" + openedFileList.size());
+				break;
+			}
+		}
+		System.out.println("文件关闭");
+		return true;
+
+		/// 并从已打开文件表中删除对应项
+
+	}
+
+	public void deleteFile(String pathname) {
+
+	}
+
+	public void typeFile(String pathname) {
+
+	}
+
+	public void change() {
+
+	}
+
+	public boolean md(String pathname) {
+		String folderName;
+		DirItem superDirItem;
+		byte[] superDir = new byte[64];
+
+		int availableBlock;
+		DirItem di;
+
+		if (pathname.charAt(0) == '/') {
+			// 用绝对路径创建新目录, 则需要通过路径寻找父目录
+			superDirItem = findSuperDirItem(pathname);
+			if (superDirItem == null) {
+				return false;
+			}
+		} else {
+			// 用相对路径创建新目录, 则当前打开的目录就是父目录
+			superDirItem = curDirItem;
+		}
+
+		// 把父目录的内容读取到缓存中, 并复制出来
+		disk.read(superDirItem.getBlockNum());
+		Util.copyBlock(disk.getReader(), superDir);
+
+		// 父目录存在,判断其中是否有重名文件夹
+		folderName = Util.getFolderName(pathname);
+		for (int i = 0; i < 8; i++) {
+			di = Util.getDirItemAt(superDir, i);
+			if (di.getName().equals(folderName) && di.isDir()) {
+				return false;// 发现重名文件夹, 终止方法
+			}
+		}
+
+		// 不存在重名文件夹, 则寻找一个空位置放入目录项
+		for (int i = 0; i < 8; i++) {
+			di = Util.getDirItemAt(disk.getReader(), i);
+			if (di.getName().equals("")) {
+				// 新建一个目录项, 写入新文件夹的信息
+				di = new DirItem();
+				di.setName(folderName);
+				di.setType("  ");// 文件夹的类型用两个空格填充
+
+				di.setProperty(false, false, true);// 设置属性, 非 read-only, 非系统文件, 为目录
+				availableBlock = Util.findAvailableBlock(disk);// 设置盘块号
+				di.setBlockNum(availableBlock);
+				di.setSize(0);// 文件夹的大小统一设置为0
+
+				Util.writeDirItem(di, superDirItem.getBlockNum(), i, disk);// 把目录项写入硬盘中
+				Util.writeFat(availableBlock, 255, disk);// 更新FAT
+				updateCurDir();//因为可能是在当前目录新建了一个文件夹, 所以刷新一下
+				return true;
+				
+			}
+		}
+		return false;// 找不到空位置，建立失败
+	}
+
+	public boolean dir(String pathname) {
+
+		DirItem di = new DirItem();
+		String name = Util.getFolderName(pathname);
+
+		if (pathname.charAt(0) == '/') {
+			// 用绝对路径访问目录, 直接用findDirItem方法找到相应的目录项
+			di = findDirItem(pathname);
+			if (di == null) {
+				System.out.println("找不到路径。");
+				return false;
+			}
+			//更新当前路径
+			curPath = pathname;
+			
+		} else {
+			// 用相对路径访问目录, 则需要把当前打开的目录当作父目录, 在父目录中寻找要打开的文件夹
+			byte[] superDir = curDir;
+			boolean found = false;
+			for (int i = 0; i < 8; i++) {
+				di = Util.getDirItemAt(superDir, i);// 从父目录中取出第i个目录项
+				if (di.getName().equals(name) && di.isDir()) {
+					found = true;
+					break;
+				}
+			}
+			if(!found) {//在当前目录找不到给定的目录, 返回 false
+				System.out.println("找不到路径。");
+				return false;
+			}
+			
+			//进入下一层目录时, 在当前路径的最后加一个"/", 然后加上下层目录的名字
+			if(!curPath.equals("/")) {
+				curPath+="/";
+			}		
+			curPath+=pathname;
+		}
+		
+		// 以下三行是打开一个目录的完整操作(把目录的内容和目录项全部转移到内存里)
+		disk.read(di.getBlockNum());
+		Util.copyBlock(disk.getReader(), curDir);
+		curDirItem = di;
+
+		// 输出当前目录下有什么内容
+		ArrayList<String> fileNames = new ArrayList<String>();
+		ArrayList<String> dirNames = new ArrayList<String>();
+		for (int i = 0; i < 8; i++) {
+			// 把当前目录的8个目录项全部取出来检查一遍
+			// 为空的丢弃, 为文件的名字加到fileNames中, 为目录的名字加到dirNames中
+			di = Util.getDirItemAt(curDir, i);// di到这里已经没用了, 直接拿来遍历
+			if (di.getFullName().equals(".")) {
+				continue;
+			}
+			if (di.isDir()) {
+				dirNames.add(di.getFullName());
+			} else {
+				fileNames.add(di.getFullName());
+			}
+		}
+
+		for (String s : dirNames) {
+			//输出目录名
+			System.out.print(s);
+			//补足空格
+			for (int i = 0; i < 20-s.length(); i++) {
+				System.out.print(" ");
+			}
+			System.out.println("[目录]");
+		}
+		for (String s : fileNames) {
+			//输出文件名
+			System.out.print(s);
+			//补足空格
+			for (int i = 0; i < 20-s.length(); i++) {
+				System.out.print(" ");
+			}
+			System.out.println("[文件]");
+		}
+		return true;
+	}
+
+	public void rd() {
+
+	}
+	
+	private void updateCurDir() {
+		disk.read(curDirItem.getBlockNum());
+		Util.copyBlock(disk.getReader(), curDir);
+//		disk.read(curDirItem.getBlockNum());
+	}
+
+	public byte[] getCurDir() {
+		return curDir;
+	}
+	
+	public String getCurPath() {
+		return curPath;
+	}
+		
+	//getters & setters
+	
+}
