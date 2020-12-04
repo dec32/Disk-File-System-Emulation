@@ -153,6 +153,33 @@ public class Core {
 		}
 		return di;
 	}
+	
+	//读取fat
+	private byte[] readFat() {
+		byte[] fat = new byte[128];
+		disk.read(0);
+		for (int i = 0; i < 64; i++) {
+			fat[i] = disk.getReader()[i]; 
+		}
+		disk.read(1);
+		for (int i = 0; i < 64; i++) {
+			fat[i+64] = disk.getReader()[i];
+		}
+		return fat;
+	}
+	
+	//写fat, 提供一个长度为128的字节数组
+	private void writeFat(byte[] fat) {
+		byte[] writer = disk.getWriter();
+		for (int i = 0; i < 64; i++) {
+			writer[i] = fat[i];
+		}
+		disk.write(0);
+		for (int i = 0; i < 64; i++) {
+			writer[i] = fat[i+64];
+		}
+		disk.write(1);
+	}
 
 	public boolean createFile(String pathname, String opts) {
 		// opts 中可能有的选项有 -r 和 -s, 前者表示只读, 后者表示系统
