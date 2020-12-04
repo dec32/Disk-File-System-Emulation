@@ -168,17 +168,13 @@ public class Core {
 		return fat;
 	}
 	
-	//写fat, 提供一个长度为128的字节数组
-	private void writeFat(byte[] fat) {
-		byte[] writer = disk.getWriter();
-		for (int i = 0; i < 64; i++) {
-			writer[i] = fat[i];
-		}
-		disk.write(0);
-		for (int i = 0; i < 64; i++) {
-			writer[i] = fat[i+64];
-		}
-		disk.write(1);
+	//写fat
+	private void writeFat(int blockNum,int value) {
+		disk.read(blockNum/64);
+		byte [] block = new byte[64];
+		System.arraycopy(disk.getReader(), 0, block, 0, 64);
+		block[blockNum % 64] = (byte)value;
+		disk.write(blockNum/64, block);
 	}
 
 	public boolean createFile(String pathname, String opts) {
