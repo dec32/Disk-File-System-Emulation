@@ -176,6 +176,16 @@ public class Core {
 		block[blockNum % 64] = (byte)value;
 		disk.write(blockNum/64, block);
 	}
+	
+	private String toAbsPath(String relPath) {
+		String absPath = "";
+		if(curPath.equals("/")) {
+			absPath = curPath + relPath;
+		}else {
+			absPath = curPath + "/" + relPath;
+		}
+		return absPath;
+	}
 
 	public boolean createFile(String pathname, String opts) {
 		// opts 中可能有的选项有 -r 和 -s, 前者表示只读, 后者表示系统
