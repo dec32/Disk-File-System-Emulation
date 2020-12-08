@@ -76,7 +76,9 @@ public class Disk {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		return reader;
+		byte[] block = new byte[64];
+		System.arraycopy(reader, 0, block, 0, 64);
+		return block;
 		
 //		//把reader中的内容输出，测试
 //		System.out.print("content of reader: ");
