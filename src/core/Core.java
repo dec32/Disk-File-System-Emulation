@@ -247,6 +247,10 @@ public class Core {
 
 				Util.writeDirItem(di, superDirItem.getBlockNum(), i, disk);// 把目录项写到找到的空位之中
 				Util.writeFat(availableBlock, 255, disk);// 更新FAT
+				//往文件的第一块里面写一个“#”
+				byte[] block = new byte[64];
+				block[0] = '#';
+				disk.write(availableBlock, block);
 				break;
 			}
 		}
@@ -541,15 +545,7 @@ public class Core {
 				bnum++;
 			}
 		}
-		System.out.print("Content of block: ");
-		for (int i = 0; i < block.length; i++) {
-			if(block[i] == 0) {
-				break;
-			}
-			System.out.print((char)(int)block[i]);
-		}
-		System.out.println();
-		System.out.println("dnum: "+ dnum);
+
 		disk.write(dnum,block);
 			 
 			 
