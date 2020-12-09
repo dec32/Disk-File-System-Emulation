@@ -382,11 +382,180 @@ public class Core {
 	}
 
 	public void readFile(String pathname, int length) {
+		
+//		 1.查找已打开文件表中是否存在该文件；如果不存在，则打开后再读；
+//	      2.然后检查是否是以读方式打开文件，如果是以写方式打开文件，则不允许读；
+//	      3.最后从已打开文件表中读出读指针，从这个位置上读出所需要长度，若所需长度没有读完已
+//	     经遇到文件结束符，就终止操作。实验中用“#”表示文件结束。
+	
+	if (pathname.charAt(0) != '/') {
+		String temp = "/".concat(pathname);
 
+		System.out.println("temp:  "+temp);
+
+		pathname = getCurPath().concat(temp);
+		System.out.println("修改后的pathname: "+pathname);
+	}
+
+
+
+	DirItem item = findDirItem(pathname);
+	boolean isopen = false;
+
+	int flag = 0;
+	OpenedFile op=null;
+	for (OpenedFile of: openedFileList) {
+		if (of.getPathname().equals(pathname)) {// 已经打开
+			isopen = true;
+			flag = of.getFlag();
+			op=of;
+			break;
+		}
+	}
+	if (!isopen) {
+		String opt="r";
+		if(!openFile(pathname,opt))  {System.out.println("文件不存在，读取文件失败");return;};
+		flag=0;
+	}
+	// 已经打开：
+	else if (flag == 1) {
+		System.out.println("文件类型为写，不允许读");
+		return;
+	}
+	for (OpenedFile of: openedFileList) {
+		if (of.getPathname().equals(pathname)) {// 已经打开
+			op=of;
+			break;
+		}
+	}
+	/*这里写第三步*/
+			 byte[] fat=readFat();
+			
+			 int dnum = op.getRead()[0];
+			 int bnum = op.getRead()[1];//确定两个读指针
+			 
+			 //把文件需要读的那一块读出来
+			 
+			 byte[] block = disk.read(dnum);
+			 
+			 for(int i = 0;i< length;i++){
+			  if(bnum < 64)
+			  {//当前块还没读完
+			    char curChar=(char)(int)block[bnum];
+				  if(curChar!='#')
+			   {System.out.print(curChar);
+			   bnum++;}
+			   else { return;}
+			               
+			  }
+			  else
+			  {
+			   //寻找文件的下一块
+				dnum = fat[dnum];
+			   if(dnum==-1) {return;}
+			   bnum = 0;
+			   char curChar=(char)(int)block[bnum];
+				  if(curChar!='#')
+			   {System.out.print(curChar);
+			   bnum++;}
+			   else { return;}
+			   
+			   
+			  }
+			                           }
+			 //更新文件的两个读指针dnum和bnum
+
+			
 	}
 
 	public void writeFile(String pathname, String content) {
+//		1.查找已打开文件表中是否存在该文件
+//      不存在则打开后再写；如果存在，还要检查是否以写方式打开文件；如果不是写方式打开文件，不
+//		能写；最后从已打开文件表中读出写指针，从这个位置上写入缓冲中的数据。
+//		写文件有两种情况，一种情况是建立文件后的写入，这种写比较简单，一边写一边申请
+//		空间即可完成；另一种情况是文件打开后的写入，这个比较复杂，存在着文件中间修改的问
+//		题。实验中，第二种情况只要求完成从文件末尾向后追加的功能。
+		if (pathname.charAt(0) != '/') {
+			String temp = "/".concat(pathname);
 
+			System.out.println("temp:  "+temp);
+
+			pathname = curPath.concat(temp);
+			System.out.println("修改后的pathname: "+pathname);
+		}
+
+
+
+		DirItem item = findDirItem(pathname);
+		boolean isopen = false;
+		OpenedFile op=null;
+		int flag = 0;
+		for (OpenedFile of : openedFileList) {
+			if (of.getPathname().equals(pathname)) {// 已经打开
+				isopen = true;
+				flag = of.getFlag();
+				op=of;
+				break;
+			}
+		}
+		if (!isopen) {
+			String opt="w";
+			if(!openFile(pathname,opt))  {System.out.println("文件不存在，写文件失败");return;};
+			flag=1;
+		}
+		// 已经打开：
+		else if (flag == 0) {
+			System.out.println("文件类型为读，不允许写操作");
+			return;
+		}
+	
+		for (OpenedFile of: openedFileList) {
+			if (of.getPathname().equals(pathname)) {// 已经打开
+				op=of;
+				break;
+			}
+		}
+
+			 
+			 int dnum = op.getWrite()[0];//写指针的第0个元素表示块地址
+			 int bnum = op.getWrite()[1];//写指针的第1个元素表示块内地址
+			 int nxtDnum;
+			 int cp = 0;//contentPointer
+			 int sizeIncrement = 0;
+			 //把文件的最后一块读出来
+			 byte[] block = disk.read(dnum);
+			 
+			 for(cp = 0; cp < content.length(); cp++){
+			  if(bnum<64){//如果块内指针小于64，说明当前块还没满
+			   block[bnum] = (byte)(int)content.charAt(cp);
+			   bnum++;
+			  }else{//当前块已满，需要申请新的磁盘块
+			   sizeIncrement++;
+			   Util.copyBlock(block,disk.getWriter());
+			   disk.write(dnum);//先把已经写好的块写回磁盘
+			   nxtDnum = Util.findAvailableBlock(disk);
+			   writeFat(dnum,nxtDnum);
+			   writeFat(nxtDnum,-1);//找到一个新的空闲块，并更新FAT
+			   dnum = nxtDnum;
+			   block = disk.read(dnum);//把新申请的块读出来
+			   bnum = 0;
+			   block[bnum] = (byte)(int)content.charAt(cp);
+			   bnum++;
+			  }
+			 }
+			 
+			 
+			 int[] newWriter= {bnum,dnum};
+			 op.setWrite(newWriter);//更新写指针
+			 //更新文件的大小，大小的增量已经存放在sizeIncrement中
+			 int len=op.getLength();
+			 len+=content.length();
+			 op.setLength(len);
+	
+	
+	
+	
+	
 	}
 
 	public boolean closeFile(String pathname) {
