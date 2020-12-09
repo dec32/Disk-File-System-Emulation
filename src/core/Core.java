@@ -1,5 +1,6 @@
 package core;
 
+import java.awt.List;
 import java.util.ArrayList;
 
 
@@ -185,6 +186,25 @@ public class Core {
 			absPath = curPath + "/" + relPath;
 		}
 		return absPath;
+	}
+	
+	private int[] getBlockNums(DirItem di) {
+		ArrayList<Integer> blockNumList = new ArrayList<Integer>();
+		byte[] fat = readFat();
+		blockNumList.add(di.getBlockNum());
+		int nxtBlockNum;
+		for(int i = 0 ;true ;i++) {
+			nxtBlockNum = fat[blockNumList.get(i)];
+			if(nxtBlockNum == -1) {
+				break;
+			}
+			blockNumList.add(nxtBlockNum);
+		}
+		int[] blockNums = new int[blockNumList.size()];
+		for (int i = 0; i < blockNums.length; i++) {
+			blockNums[i] = blockNumList.get(i);
+		}
+		return blockNums;
 	}
 
 	public boolean createFile(String pathname, String opts) {

@@ -16,7 +16,7 @@ public class DirItem {
 		//8表示这是一个目录的目录项，2表示了起始盘块号
 		return new DirItem(new byte[] {0, 0, 0, ' ', ' ', 8, 2, 0});		
 	}
-		
+	
 	// getters
 	
 	public String getName() {
