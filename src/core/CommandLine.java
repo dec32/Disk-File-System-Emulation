@@ -21,14 +21,28 @@ public class CommandLine {
 		String[] splited = str.split(" ");
 		//字符串的第一个单词就是命令
 		command = splited[0];
-		//以"-"开头的为选项, 其他的为参数
-		for (int i = 1; i < splited.length; i++) {
-			if(splited[i].startsWith("-")) {
-				opts+=splited[i].charAt(1);//charAt(0)为"-", charAt(1)为选项本身
-			}else {
-				argList.add(splited[i]);
+		if(command.equals("write")) {
+			//write命令第一部分为“write”，第二部分为路径，后面的全部为第三部分，为写的内容
+			argList.add(splited[1]);//路径
+			String content = "";
+			for (int i = 2; i < splited.length; i++) {
+				content += splited[i];
+				if(i!=splited.length-1) {
+					content+=" ";
+				}
+			}
+			argList.add(content);
+		}else {
+			//以"-"开头的为选项, 其他的为参数
+			for (int i = 1; i < splited.length; i++) {
+				if(splited[i].startsWith("-")) {
+					opts+=splited[i].charAt(1);//charAt(0)为"-", charAt(1)为选项本身
+				}else {
+					argList.add(splited[i]);
+				}
 			}
 		}
+
 		//把讨厌的ArrayList转成数组
 		int size = argList.size();
 		args = (String[])argList.toArray(new String[size]);

@@ -53,7 +53,7 @@ public class Core {
 //		System.out.print("args: ");
 //		for(String s:args)
 //		{
-//			System.out.print(s+" ");
+//			System.out.print(s+", ");
 //		}
 //		System.out.println();
 		
@@ -307,7 +307,7 @@ public class Core {
 
 		if (!flag){
 			System.out.println("文件不存在！结束！");
-			//return false;
+			return false;
 		}
 
 
@@ -475,33 +475,32 @@ public class Core {
 //		写文件有两种情况，一种情况是建立文件后的写入，这种写比较简单，一边写一边申请
 //		空间即可完成；另一种情况是文件打开后的写入，这个比较复杂，存在着文件中间修改的问
 //		题。实验中，第二种情况只要求完成从文件末尾向后追加的功能。
-		if (pathname.charAt(0) != '/') {
-			String temp = "/".concat(pathname);
-
-			System.out.println("temp:  "+temp);
-
-			pathname = curPath.concat(temp);
-			System.out.println("修改后的pathname: "+pathname);
+		
+		//把路径转成绝对路径
+		if(!pathname.startsWith("/")) {
+			pathname = toAbsPath(pathname);
 		}
 
-
-
-		DirItem item = findDirItem(pathname);
-		boolean isopen = false;
-		OpenedFile op=null;
-		int flag = 0;
+		//判断文件是否打开
+		boolean open = false;
+		OpenedFile ofToWrite=null;
+		int flag = 0;//0为只读，1为读写
 		for (OpenedFile of : openedFileList) {
 			if (of.getPathname().equals(pathname)) {// 已经打开
-				isopen = true;
+				open = true;
 				flag = of.getFlag();
-				op=of;
+				ofToWrite=of;
 				break;
 			}
 		}
-		if (!isopen) {
-			String opt="w";
-			if(!openFile(pathname,opt))  {System.out.println("文件不存在，写文件失败");return;};
-			flag=1;
+		if (!open) {
+//			if(!openFile(pathname,"")){
+//				System.out.println("文件不存在，写文件失败");
+//				return;
+//			}
+//			flag=1;
+			System.out.println("文件未打开");
+			return;
 		}
 		// 已经打开：
 		else if (flag == 0) {
@@ -511,46 +510,55 @@ public class Core {
 	
 		for (OpenedFile of: openedFileList) {
 			if (of.getPathname().equals(pathname)) {// 已经打开
-				op=of;
+				ofToWrite=of;
 				break;
 			}
 		}
 
 			 
-			 int dnum = op.getWrite()[0];//写指针的第0个元素表示块地址
-			 int bnum = op.getWrite()[1];//写指针的第1个元素表示块内地址
-			 int nxtDnum;
-			 int cp = 0;//contentPointer
-			 int sizeIncrement = 0;
-			 //把文件的最后一块读出来
-			 byte[] block = disk.read(dnum);
+		int dnum = ofToWrite.getWrite()[0];// 写指针的第0个元素表示块地址
+		int bnum = ofToWrite.getWrite()[1];// 写指针的第1个元素表示块内地址
+		int nxtDnum;
+		int cp = 0;// contentPointer
+		int sizeIncrement = 0;
+		// 把文件的最后一块读出来
+		byte[] block = disk.read(dnum);
+
+		for (cp = 0; cp < content.length(); cp++) {
+			if (bnum < 64) {// 如果块内指针小于64，说明当前块还没满
+				block[bnum] = (byte) (int) content.charAt(cp);
+				bnum++;
+			} else {// 当前块已满，需要申请新的磁盘块
+				sizeIncrement++;
+				disk.write(dnum,block);// 先把已经写好的块写回磁盘
+				nxtDnum = Util.findAvailableBlock(disk);
+				writeFat(dnum, nxtDnum);
+				writeFat(nxtDnum, -1);// 找到一个新的空闲块，并更新FAT
+				dnum = nxtDnum;
+				block = disk.read(dnum);// 把新申请的块读出来
+				bnum = 0;
+				block[bnum] = (byte) (int) content.charAt(cp);
+				bnum++;
+			}
+		}
+		System.out.print("Content of block: ");
+		for (int i = 0; i < block.length; i++) {
+			if(block[i] == 0) {
+				break;
+			}
+			System.out.print((char)(int)block[i]);
+		}
+		System.out.println();
+		System.out.println("dnum: "+ dnum);
+		disk.write(dnum,block);
 			 
-			 for(cp = 0; cp < content.length(); cp++){
-			  if(bnum<64){//如果块内指针小于64，说明当前块还没满
-			   block[bnum] = (byte)(int)content.charAt(cp);
-			   bnum++;
-			  }else{//当前块已满，需要申请新的磁盘块
-			   sizeIncrement++;
-			   Util.copyBlock(block,disk.getWriter());
-			   disk.write(dnum);//先把已经写好的块写回磁盘
-			   nxtDnum = Util.findAvailableBlock(disk);
-			   writeFat(dnum,nxtDnum);
-			   writeFat(nxtDnum,-1);//找到一个新的空闲块，并更新FAT
-			   dnum = nxtDnum;
-			   block = disk.read(dnum);//把新申请的块读出来
-			   bnum = 0;
-			   block[bnum] = (byte)(int)content.charAt(cp);
-			   bnum++;
-			  }
-			 }
 			 
-			 
-			 int[] newWriter= {bnum,dnum};
-			 op.setWrite(newWriter);//更新写指针
-			 //更新文件的大小，大小的增量已经存放在sizeIncrement中
-			 int len=op.getLength();
-			 len+=content.length();
-			 op.setLength(len);
+		int[] newWriter= {bnum,dnum};
+		ofToWrite.setWrite(newWriter);//更新写指针
+		//更新文件的大小，大小的增量已经存放在sizeIncrement中
+		int len=ofToWrite.getLength();
+		len+=content.length();
+		ofToWrite.setLength(len);
 	
 	
 	
