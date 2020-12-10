@@ -9,7 +9,7 @@ public class Core {
 	private Disk disk;
 	private DirItem curDirItem = new DirItem();// 保存当前打开的目录的目录项
 	private byte[] curDir = new byte[64];// 保存当前打开的目录
-	private String curPath = "/";	
+	private String curPath = "/";
 	private ArrayList<OpenedFile> openedFileList = new ArrayList<OpenedFile>();//已打开文件表
 
 	public Core() {
@@ -31,7 +31,7 @@ public class Core {
 	}
 
 	public void execute(String str) {
-		
+
 		/*
 		 * 示范:
 		 * dir /123 (转到 /123 下)
@@ -48,7 +48,7 @@ public class Core {
 		String command = cl.getCommand();
 		String opts = cl.getOpts();
 		String[] args = cl.getArgs();
-		
+
 //		System.out.println("command: "+command);
 //		System.out.println("opts: "+opts);
 //		System.out.print("args: ");
@@ -57,15 +57,15 @@ public class Core {
 //			System.out.print(s+", ");
 //		}
 //		System.out.println();
-		
-		
+
+
 		/*
 		 * if-else nightmare, try to re-write this part
 		 */
 		if (command.equals("open")) {
 			openFile(args[0], opts);// args0 为路径, 命令中唯一的参数, 下同
 		} else if (command.equals("close")) {
-			closeFile(args[0]); 
+			closeFile(args[0]);
 		} else if (command.equals("dir")) {
 			dir(args[0]);// dir 命令只有一个参数, 路径
 		} else if (command.equals("write")) {
@@ -154,13 +154,13 @@ public class Core {
 		}
 		return di;
 	}
-	
+
 	//读取fat
 	private byte[] readFat() {
 		byte[] fat = new byte[128];
 		disk.read(0);
 		for (int i = 0; i < 64; i++) {
-			fat[i] = disk.getReader()[i]; 
+			fat[i] = disk.getReader()[i];
 		}
 		disk.read(1);
 		for (int i = 0; i < 64; i++) {
@@ -168,7 +168,7 @@ public class Core {
 		}
 		return fat;
 	}
-	
+
 	//写fat
 	private void writeFat(int blockNum,int value) {
 		disk.read(blockNum/64);
@@ -177,7 +177,7 @@ public class Core {
 		block[blockNum % 64] = (byte)value;
 		disk.write(blockNum/64, block);
 	}
-	
+
 	private String toAbsPath(String relPath) {
 		String absPath = "";
 		if(curPath.equals("/")) {
@@ -187,7 +187,7 @@ public class Core {
 		}
 		return absPath;
 	}
-	
+
 	private int[] getBlockNums(DirItem di) {
 		ArrayList<Integer> blockNumList = new ArrayList<Integer>();
 		byte[] fat = readFat();
@@ -278,8 +278,7 @@ public class Core {
 		return true;
 	}
 
-	public boolean openFile(String pathname, String opts) { // 这里的flag表示操作类型，flag名字来源于已打开文件表介绍
-		
+	public boolean openFile(String pathname, String opts) { //pathname-文件名,opts-操作类型(读/写)
 		/*
 		 * 传进来的pathname可能是相对路径, 也可能是绝对路径
 		 * 解决的办法是, 如果传进来的是相对路径, 我就把他转换成绝对路径
@@ -291,8 +290,9 @@ public class Core {
 		// *3填写已打开文件表，若文件原本已经在已打开文件表，不需要重复填写
 
 		boolean flag = false;
+
 		// 查找父目录中有没有该文件
-		DirItem di;
+		DirItem di = null;
 		byte[] bytes = new byte[8];
 		boolean flag1 = false;
 
@@ -304,13 +304,11 @@ public class Core {
 			// 若提供的是绝对路径, 则需要查找父目录
 			superDirItem = findSuperDirItem(pathname);
 			if (superDirItem == null) {
-				System.out.println("绝对路径不存在");
+//				System.out.println("父目录不存在");
 				return false;
-			} else {
-
-				System.out.println("绝对路径存在");
 			}
-		} else {
+
+		}else {
 			// 若提供的是相对路径, 则父目录就是当前打开的目录
 			flag1 = true;
 			superDirItem = curDirItem;
@@ -318,19 +316,21 @@ public class Core {
 		disk.read(superDirItem.getBlockNum());
 		Util.copyBlock(disk.getReader(), superDir);
 
+
+		//如果父目录存在,需要判断父目录下是否存在该子文件
 		for (int i = 0; i < 8; i++) {
 			di = Util.getDirItemAt(superDir, i);// 从父目录中取出第i个目录项
 			if (di.getName().equals(filename) && di.getType().equals(type) && !di.isDir()) {
 				flag = true;
-				System.out.println("相对路径文件存在");
-				bytes = di.getBytes();
+//				System.out.println("父目录下子文件存在");
+				bytes = di.getBytes();  //获取该子文件的目录项
 				break;
 
 			}
 		}
 
 		if (!flag){
-			System.out.println("文件不存在！结束！");
+			System.out.println("文件不存在！"); //由于父目录都不存在,更不可能存在父目录相对应的文件了
 			return false;
 		}
 
@@ -340,20 +340,22 @@ public class Core {
 
 
         if(flag1 && flag){
-        	//需要修改pathname,防止再次打开
+        	//需要修改相对路径pathname,转为绝对路径,防止再次打开
 			String temp = "/".concat(pathname);
 
-			System.out.println("temp:  "+temp);
+//			System.out.println("temp:  "+temp);
 
 			pathname = curPath.concat(temp);
-			System.out.println("修改后的pathname: "+pathname);
+//			System.out.println("修改后的pathname: "+pathname);
         }
 		boolean is_open = false;
 
+
+		//
 		if (flag) {/// 在磁盘中存在该文件
-			int property = bytes[5];
+			int property = bytes[5]; //获取DirItem目录项的第5个字节，即属性字节
 			// byte[] bytes = di.getBytes();
-			if (property % 2 == 1 && !opts.contains("r")) { // 说明需要写只读文件
+			if (property % 2 == 1 && !opts.contains("r")) { // 最后1位是1,该文件是只读文件;操作类型不是r  :说明要写只读文件
 				System.out.println("写只读文件，文件打开错误！");
 				return false;
 			} else {
@@ -368,35 +370,51 @@ public class Core {
 					}
 				}
 
-				if (!is_open) { // 文件还没有打开，需要添加到已打开文件表中,需要先
 
-					OpenedFile newFile = new OpenedFile(); // 需要将打开文件信息记录在newFile中
-					// 这里需要将item的信息复制到newFile中去
+				//如果文件没有存在已打开文件表，下面建立新OpenedFile对象，将该信息存入已打开文件表
+				//
+				if (!is_open) {
+
+					OpenedFile newFile = new OpenedFile(); // 将打开文件信息记录在OpenFiled中
+
+					// 下面将item的信息复制到newFile中去
 					newFile.setPathname(pathname);
 					if (opts.contains("r"))//文件只读
 						newFile.setFlag(0);
 					else
 						newFile.setFlag(1);
-					byte temp = bytes[5];
-					char attribute = (char) temp;
 
-					newFile.setAttribute(attribute);
-					int number = bytes[6];
+					byte temp = bytes[5];  //bytes[5]存文放着文件的属性信息
+					char attribute = (char) temp;
+                    newFile.setAttribute(attribute);
+
+					int number =di.getBlockNum();
 					newFile.setNumber(number);
 					int[] read1 = new int[2];
 					read1[0] = number;
 					read1[1] = 0;
 					newFile.setRead(read1);
-					/// 注意这里！！！！！！！！！！！！！
-					/// 第一次打开由于之前没有记录，初始化为0（目录项记录的是盘快数，不是文件占用字节数）
-					/// 同理，read[0]初始化为起始盘块，read[1]初始化为0
-					/// write[0]初始化为0，write[1]初始化为1
+
+					//修改write[]
+					int blockNums[] = getBlockNums(di);
+					int []write1 = new int[2];
+					write1[0] = blockNums[blockNums.length-1];//写指针的块地址指向该文件的最后一个块
+					byte[] block = disk.read(write1[0]);      //读出文件的最后一块,找到文件末尾地址
+					for(int i = 0; i<64; i++){
+						if(block[i] == '#'){
+							write1[1] = i;
+							break;
+						}
+					}
+					newFile.setWrite(write1);
+
+
 
 					openedFileList.add(newFile);
 
 				}
-				// 说明文件已经打开
-				System.out.println("file opened");
+
+//				System.out.println("file opened");
 				return true;
 			}
 
@@ -406,12 +424,12 @@ public class Core {
 	}
 
 	public void readFile(String pathname, int length) {
-		
+
 //		 1.查找已打开文件表中是否存在该文件；如果不存在，则打开后再读；
 //	      2.然后检查是否是以读方式打开文件，如果是以写方式打开文件，则不允许读；
 //	      3.最后从已打开文件表中读出读指针，从这个位置上读出所需要长度，若所需长度没有读完已
 //	     经遇到文件结束符，就终止操作。实验中用“#”表示文件结束。
-	
+
 	if (pathname.charAt(0) != '/') {
 		String temp = "/".concat(pathname);
 
@@ -454,14 +472,14 @@ public class Core {
 	}
 	/*这里写第三步*/
 			 byte[] fat=readFat();
-			
+
 			 int dnum = op.getRead()[0];
 			 int bnum = op.getRead()[1];//确定两个读指针
-			 
+
 			 //把文件需要读的那一块读出来
-			 
+
 			 byte[] block = disk.read(dnum);
-			 
+
 			 for(int i = 0;i< length;i++){
 			  if(bnum < 64)
 			  {//当前块还没读完
@@ -470,7 +488,7 @@ public class Core {
 			   {System.out.print(curChar);
 			   bnum++;}
 			   else { return;}
-			               
+
 			  }
 			  else
 			  {
@@ -483,13 +501,13 @@ public class Core {
 			   {System.out.print(curChar);
 			   bnum++;}
 			   else { return;}
-			   
-			   
+
+
 			  }
 			                           }
 			 //更新文件的两个读指针dnum和bnum
 
-			
+
 	}
 
 	public void writeFile(String pathname, String content) {
@@ -499,7 +517,7 @@ public class Core {
 //		写文件有两种情况，一种情况是建立文件后的写入，这种写比较简单，一边写一边申请
 //		空间即可完成；另一种情况是文件打开后的写入，这个比较复杂，存在着文件中间修改的问
 //		题。实验中，第二种情况只要求完成从文件末尾向后追加的功能。
-		
+
 		//把路径转成绝对路径
 		if(!pathname.startsWith("/")) {
 			pathname = toAbsPath(pathname);
@@ -531,7 +549,7 @@ public class Core {
 			System.out.println("文件类型为读，不允许写操作");
 			return;
 		}
-	
+
 		for (OpenedFile of: openedFileList) {
 			if (of.getPathname().equals(pathname)) {// 已经打开
 				ofToWrite=of;
@@ -539,7 +557,7 @@ public class Core {
 			}
 		}
 
-			 
+
 		int dnum = ofToWrite.getWrite()[0];// 写指针的第0个元素表示块地址
 		int bnum = ofToWrite.getWrite()[1];// 写指针的第1个元素表示块内地址
 		int nxtDnum;
@@ -567,19 +585,19 @@ public class Core {
 		}
 
 		disk.write(dnum,block);
-			 
-			 
+
+
 		int[] newWriter= {bnum,dnum};
 		ofToWrite.setWrite(newWriter);//更新写指针
 		//更新文件的大小，大小的增量已经存放在sizeIncrement中
 		int len=ofToWrite.getLength();
 		len+=content.length();
 		ofToWrite.setLength(len);
-	
-	
-	
-	
-	
+
+
+
+
+
 	}
 
 	public boolean closeFile(String pathname) {
@@ -587,17 +605,18 @@ public class Core {
 		// *1先看文件是否在已打开文件表中
 		// *2已经打开，检查打开方式flag,
 		// *3如果flag==1，修改目录项，从已文件表中删除对应项
+
 		if (pathname.charAt(0) != '/') {
 			String temp = "/".concat(pathname);
 
-			System.out.println("temp:  "+temp);
+//			System.out.println("temp:  "+temp);
 
 			pathname = curPath.concat(temp);
-			System.out.println("修改后的pathname: "+pathname);
+//			System.out.println("修改后的pathname: "+pathname);
 		}
 
 
-
+//
 		DirItem item = findDirItem(pathname);
 		boolean isopen = false;
 
@@ -610,18 +629,17 @@ public class Core {
 			}
 		}
 		if (!isopen) {
-			System.out.println("文件并没有打开，无需关闭");
+			System.out.println("文件之前没有打开，无需关闭");
 			return false;
 		}
-		// 已经打开：
-		if (flag == 0) {
-			System.out.println("文件没有经过写操作");
-		}
-		// flag==1,文件经过修改，需要修改目录项，追加文件结束符‘#’
-		// ！！！！！！！！！
-		// 注意：文件结束符‘#’追加需要登这里的write函数实现时再写，这里就不
 
-		if (flag == 1) { // 文件经过写操作，需遍历找到文件所占用总盘块数
+//		if (flag == 0) {
+////			System.out.println("文件没有经过写操作"); //直接将文件信息从已打开目录表删除就行
+//		}
+
+
+		// flag==1,文件经过修改，需要1.修改目录项--即文件总长度，2.追加文件结束符‘#’
+		if (flag == 1) { // 文件经过写操作，需遍历找到文件所占用总盘块数，修改总盘快数
 
 			// 以下函数遍历找到文件所占用盘块数
 			byte[] readDisk = new byte[128];
@@ -639,26 +657,52 @@ public class Core {
 				length++;
 				startNumber = readDisk[startNumber];
 			}
-			// System.out.println("here");
+
 			item.setSize(length);
+
+
+			///// 在这里追加文件结束符‘#’
+			//write[0]--第几块   write[1]--第几个字
+			OpenedFile of;
+			int i=0;
+			for(i=0;i<openedFileList.size();i++){
+//				System.out.println(openedFileList.get(i).getPathname());
+				if(openedFileList.get(i).getPathname().equals(pathname)){
+
+//					System.out.println("i_equ : "+i);
+					break;
+				}
+			}
+//			System.out.println("i="+i);
+			of = openedFileList.get(i);
+
+			int []write = of.getWrite();
+			byte[]block=disk.read(write[0]);
+			block[write[1]]='#';
+			disk.write(write[0],block);
+
+			//////
+
+
 		}
 
 		// 将文件从已打开文件表中删除
 		for (OpenedFile of : openedFileList) {
 			if (of.getPathname().equals(pathname)) {
 				// System.out.println("文件已打开");
-				System.out.println("未删前长度" + openedFileList.size());
+//				System.out.println("未删前长度" + openedFileList.size());
 				openedFileList.remove(of);
-				System.out.println("删除后长度" + openedFileList.size());
+//				System.out.println("删除后长度" + openedFileList.size());
 				break;
 			}
 		}
 		System.out.println("文件关闭");
 		return true;
 
-		/// 并从已打开文件表中删除对应项
+
 
 	}
+
 
 	public void deleteFile(String pathname) {
 
@@ -722,7 +766,7 @@ public class Core {
 				Util.writeFat(availableBlock, 255, disk);// 更新FAT
 				updateCurDir();//因为可能是在当前目录新建了一个文件夹, 所以刷新一下
 				return true;
-				
+
 			}
 		}
 		return false;// 找不到空位置，建立失败
@@ -742,7 +786,7 @@ public class Core {
 			}
 			//更新当前路径
 			curPath = pathname;
-			
+
 		} else {
 			// 用相对路径访问目录, 则需要把当前打开的目录当作父目录, 在父目录中寻找要打开的文件夹
 			byte[] superDir = curDir;
@@ -758,14 +802,14 @@ public class Core {
 				System.out.println("找不到路径。");
 				return false;
 			}
-			
+
 			//进入下一层目录时, 在当前路径的最后加一个"/", 然后加上下层目录的名字
 			if(!curPath.equals("/")) {
 				curPath+="/";
-			}		
+			}
 			curPath+=pathname;
 		}
-		
+
 		// 以下三行是打开一个目录的完整操作(把目录的内容和目录项全部转移到内存里)
 		disk.read(di.getBlockNum());
 		Util.copyBlock(disk.getReader(), curDir);
@@ -812,7 +856,7 @@ public class Core {
 	public void rd() {
 
 	}
-	
+
 	private void updateCurDir() {
 		disk.read(curDirItem.getBlockNum());
 		Util.copyBlock(disk.getReader(), curDir);
@@ -822,11 +866,11 @@ public class Core {
 	public byte[] getCurDir() {
 		return curDir;
 	}
-	
+
 	public String getCurPath() {
 		return curPath;
 	}
-		
+
 	//getters & setters
-	
+
 }
