@@ -81,7 +81,7 @@ public class Core {
 		} else if (command.equals("md")) {
 			md(args[0]);// md 命令只有一个参数, 路径
 		} else if (command.equals("delete")) {
-
+			deleteFile(args[0]);
 		} else if (command.equals("rd")) {
 
 		} else {
@@ -719,7 +719,48 @@ public class Core {
 
 
 	public void deleteFile(String pathname) {
-
+		if(!pathname.startsWith("/")){
+			pathname = toAbsPath(pathname);//如果传进来的路径是相对路径，那么把他转成绝对路径
+		}
+		//判断文件是否打开
+		boolean opened = false;	
+		for(OpenedFile op:openedFileList){
+			if(op.getPathname().equals(pathname)){
+				opened = true;
+			}
+		}
+		if(opened){
+			System.out.println("文件已打开");
+			return;
+		}
+		//获取文件的块号列表
+		int[] blockNums = getBlockNums(findDirItem(pathname));
+		//之后把文件占用的所有块全部解除占用（把FAT表中对应的位置全部修改为0，表示未被占用）
+		for(int blockNum:blockNums){
+//			System.out.println("blockNum: "+blockNum);
+			writeFat(blockNum,0);
+		}
+		//再在父目录中销毁掉目录项
+		DirItem superDirItem = findSuperDirItem(pathname);
+		byte[] superDir = disk.read(superDirItem.getBlockNum());
+		String name = findDirItem(pathname).getFullName();//获取要删除的文件的名字
+		//找到要销毁的目录项是父目录中的第几个
+		int numOfDirItemToDestroy = 0;
+		for(int i = 0; i < 8 ;i++){
+			if(Util.getDirItemAt(superDir,i).getFullName().equals(name)){
+				numOfDirItemToDestroy = i;
+//				System.out.println("numOfDirItemToDestroy: "+numOfDirItemToDestroy);
+				break;
+			}
+		}
+		//开始销毁
+		for(int i = 0; i < 8; i++){
+			superDir[numOfDirItemToDestroy*8+i] = 0;
+		}
+		//把父目录写回磁盘
+		disk.write(superDirItem.getBlockNum(),superDir);
+		//再把父目录重新读回来
+		curDir = disk.read(curDirItem.getBlockNum());
 	}
 
 	public void typeFile(String pathname) {
