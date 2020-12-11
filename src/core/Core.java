@@ -569,24 +569,36 @@ public class Core {
 		byte[] block = disk.read(dnum);
 
 		for (cp = 0; cp < content.length(); cp++) {
-			if (bnum < 64) {// 如果块内指针小于64，说明当前块还没满
-				block[bnum] = (byte) (int) content.charAt(cp);
-				bnum++;
-			} else {// 当前块已满，需要申请新的磁盘块
-				sizeIncrement++;
-				disk.write(dnum,block);// 先把已经写好的块写回磁盘
-				nxtDnum = Util.findAvailableBlock(disk);
+//			if (bnum < 64) {// 如果块内指针小于64，说明当前块还没满
+//				block[bnum] = (byte) (int) content.charAt(cp);
+//				bnum++;
+//			} else {// 当前块已满，需要申请新的磁盘块
+//				sizeIncrement++;
+//				disk.write(dnum,block);// 先把已经写好的块写回磁盘
+//				nxtDnum = Util.findAvailableBlock(disk);
+//				writeFat(dnum, nxtDnum);
+//				writeFat(nxtDnum, -1);// 找到一个新的空闲块，并更新FAT
+//				dnum = nxtDnum;
+//				block = disk.read(dnum);// 把新申请的块读出来
+//				bnum = 0;
+//				block[bnum] = (byte) (int) content.charAt(cp);
+//				bnum++;
+//			}
+			
+			block[bnum] = (byte) (int) content.charAt(cp);//不判断指针有没有越界，直接写字节
+			bnum++;//指针自增，然后再判断有没有越界
+			if(bnum == 64) {
+				disk.write(dnum,block);//指针越界，说明已经写满了一个块，把这个块写回磁盘
+				nxtDnum = Util.findAvailableBlock(disk);// 找到一个新的空闲块，并更新FAT
 				writeFat(dnum, nxtDnum);
-				writeFat(nxtDnum, -1);// 找到一个新的空闲块，并更新FAT
+				writeFat(nxtDnum, -1);
 				dnum = nxtDnum;
 				block = disk.read(dnum);// 把新申请的块读出来
-				bnum = 0;
-				block[bnum] = (byte) (int) content.charAt(cp);
-				bnum++;
+				bnum = 0;//写指针重新回到0
 			}
 		}
 
-		disk.write(dnum,block);
+		disk.write(dnum,block);//循环结束后，还会有最后一个块没写回磁盘，所以补上
 
 
 		int[] newWriter= {dnum,bnum};
