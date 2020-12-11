@@ -778,7 +778,94 @@ public class Core {
 	}
 
 	public void typeFile(String pathname) {
+//		显示文件内容首先要找到该文件的目录登记项，如果文件不存在，指令执行失败；如果
+//		存在，查看文件是否打开，打开则不能显示文件内容；若没有打开，从目录中取出文件的起
+//		始盘块号，一块一块显示文件内容。
+		
+		boolean flag = false;
+		// 查找父目录中有没有该文件
+		DirItem di = null;
+		byte[] bytes = new byte[8];
+		boolean flag1 = false;
 
+		String filename = Util.getName(pathname);
+		String type = Util.getType(pathname);
+		DirItem superDirItem;// 父目录项
+		byte[] superDir = new byte[64];// 父目录
+		if (pathname.charAt(0) == '/') {
+			// 若提供的是绝对路径, 则需要查找父目录
+			superDirItem = findSuperDirItem(pathname);
+			if (superDirItem == null) {
+//				System.out.println("父目录不存在");
+				return;
+			}
+
+		}else {
+			// 若提供的是相对路径, 则父目录就是当前打开的目录
+			flag1 = true;
+			superDirItem = curDirItem;
+		}
+		disk.read(superDirItem.getBlockNum());
+		Util.copyBlock(disk.getReader(), superDir);
+
+
+		//如果父目录存在,需要判断父目录下是否存在该子文件
+		for (int i = 0; i < 8; i++) {
+			di = Util.getDirItemAt(superDir, i);// 从父目录中取出第i个目录项
+			if (di.getName().equals(filename) && di.getType().equals(type) && !di.isDir()) {
+				flag = true;
+				bytes = di.getBytes();  //获取该子文件的目录项
+				break;
+
+			}
+		}
+
+		if (!flag){
+			System.out.println("文件不存在！"); //由于父目录都不存在,更不可能存在父目录相对应的文件了
+			return;
+		}
+
+
+        if(flag1 && flag){
+        	//需要修改相对路径pathname,转为绝对路径,防止再次打开
+			String temp = "/".concat(pathname);
+			pathname = curPath.concat(temp);
+
+        }
+      //判断文件是否打开
+      		boolean open = false;
+      		OpenedFile ofToWrite=null;
+      		for (OpenedFile of : openedFileList) {
+      			if (of.getPathname().equals(pathname)) {// 已经打开
+      				open = true;
+      				break;
+      			}
+      		}
+      		if(open) {System.out.println("文件已打开，操作失败");return;}
+      	//获取文件的块号列表
+    int[] blockNums = getBlockNums(findDirItem(pathname));
+	
+	
+    byte[] fat=readFat();
+
+	 //把文件一块一块地读出来
+     for(int n=0;n<blockNums.length;n++)
+	 {   int BlockNum=blockNums[n];
+    	 byte[] block = disk.read(BlockNum);
+	     System.out.println("文件第"+n+"块内容为:");
+	     for(int i=0;i<64;i++)
+	     {
+	    	 char curChar=(char)(int)block[i];
+	    	 if(curChar!='#') {System.out.print(curChar);}
+	    	 else { return ;}
+	     }
+	    System.out.println("");
+	 
+	 
+	 }
+	
+	
+	
 	}
 
 	public void change() {
