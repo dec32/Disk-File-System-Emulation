@@ -85,7 +85,7 @@ public class Core {
 		} else if (command.equals("rd")) {
 			rd(args[0]);
 		} else {
-			System.out.println("Syntax error you dumbass");
+			System.out.println("Syntax error.");
 		}
 
 	}
