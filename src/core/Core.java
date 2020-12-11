@@ -83,7 +83,7 @@ public class Core {
 		} else if (command.equals("delete")) {
 			deleteFile(args[0]);
 		} else if (command.equals("rd")) {
-
+			rd(args[0]);
 		} else {
 			System.out.println("Syntax error you dumbass");
 		}
@@ -155,6 +155,12 @@ public class Core {
 		return di;
 	}
 
+	//更新当前目录
+	private void updateCurDir() {
+		disk.read(curDirItem.getBlockNum());
+		Util.copyBlock(disk.getReader(), curDir);
+	}
+	
 	//读取fat
 	private byte[] readFat() {
 		byte[] fat = new byte[128];
@@ -205,6 +211,12 @@ public class Core {
 			blockNums[i] = blockNumList.get(i);
 		}
 		return blockNums;
+	}
+	
+	//把指定块的内容擦除
+	private void wipeBlock(int blockNum) {
+		byte[] emptyBlock= new byte[64];
+		disk.write(blockNum, emptyBlock);
 	}
 
 	public boolean createFile(String pathname, String opts) {
@@ -722,6 +734,7 @@ public class Core {
 		if(!pathname.startsWith("/")){
 			pathname = toAbsPath(pathname);//如果传进来的路径是相对路径，那么把他转成绝对路径
 		}
+		System.out.println("deleting file: "+pathname);
 		//判断文件是否打开
 		boolean opened = false;	
 		for(OpenedFile op:openedFileList){
@@ -760,7 +773,8 @@ public class Core {
 		//把父目录写回磁盘
 		disk.write(superDirItem.getBlockNum(),superDir);
 		//再把父目录重新读回来
-		curDir = disk.read(curDirItem.getBlockNum());
+//		curDir = disk.read(curDirItem.getBlockNum());
+		updateCurDir();
 	}
 
 	public void typeFile(String pathname) {
@@ -815,6 +829,7 @@ public class Core {
 				di.setProperty(false, false, true);// 设置属性, 非 read-only, 非系统文件, 为目录
 				availableBlock = Util.findAvailableBlock(disk);// 设置盘块号
 				di.setBlockNum(availableBlock);
+				wipeBlock(availableBlock);//把分配到的盘块擦除
 				di.setSize(0);// 文件夹的大小统一设置为0
 
 				Util.writeDirItem(di, superDirItem.getBlockNum(), i, disk);// 把目录项写入硬盘中
@@ -908,15 +923,52 @@ public class Core {
 		return true;
 	}
 
-	public void rd() {
+	public void rd(String pathname) {
+		if(pathname.equals("/")){
+			System.out.println("删掉根目录干甚么你这个疯子");
+			return;
+		}
+		if(!pathname.startsWith("/")){
+			pathname = toAbsPath(pathname);
+		}
+		DirItem diToRemove = findDirItem(pathname);
+		if(diToRemove == null){
+			System.out.println("dir does not exit");
+			return;
+		}
+		byte[] dirToRemove = disk.read(diToRemove.getBlockNum());
+		for(int i = 0; i < 8 ; i++){
+			DirItem di = Util.getDirItemAt(dirToRemove,i);
+			if(di.getFullName().equals(".")) {
+				continue;
+			}
+			if(!di.isDir()){
+				deleteFile(pathname + "/"+di.getFullName());
+			}else{
+				rd(pathname +"/"+di.getFullName());
+			}
+		}
+		DirItem superDirItem = findSuperDirItem(pathname);
+		byte[] superDir = disk.read(superDirItem.getBlockNum());
+			for(int i = 0; i < 8 ; i++){
+			DirItem di = Util.getDirItemAt(superDir,i);
+			if(di.getFullName().equals(diToRemove.getFullName())){
+				//把父目录中的目录项销毁
+				for(int j = 0; j < 8; j++){
+					superDir[i*8+j] = 0;
+				}
+				//把父目录写回磁盘
+				disk.write(findSuperDirItem(pathname).getBlockNum(),superDir);
+				//再把父目录读回来
+//				curDir = disk.read(curDirItem.getBlockNum());
+				updateCurDir();
+				break;
+			}
 
+		}
 	}
 
-	private void updateCurDir() {
-		disk.read(curDirItem.getBlockNum());
-		Util.copyBlock(disk.getReader(), curDir);
-//		disk.read(curDirItem.getBlockNum());
-	}
+
 
 	public byte[] getCurDir() {
 		return curDir;
