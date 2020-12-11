@@ -406,6 +406,8 @@ public class Core {
 							break;
 						}
 					}
+					System.out.println("dnum: "+write1[0]);
+					System.out.println("bnum: "+write1[1]);
 					newFile.setWrite(write1);
 
 
@@ -587,7 +589,7 @@ public class Core {
 		disk.write(dnum,block);
 
 
-		int[] newWriter= {bnum,dnum};
+		int[] newWriter= {dnum,bnum};
 		ofToWrite.setWrite(newWriter);//更新写指针
 		//更新文件的大小，大小的增量已经存放在sizeIncrement中
 		int len=ofToWrite.getLength();
