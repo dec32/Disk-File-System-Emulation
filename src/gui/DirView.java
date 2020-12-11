@@ -56,7 +56,7 @@ public class DirView extends ListView<DirViewItem>{
 						cw.execute("dir "+dvi.getDi().getFullName());
 						mw.update();
 					}else {
-						cw.execute("type"+dvi.getDi().getFullName());
+						cw.execute("type "+dvi.getDi().getFullName());
 						mw.update();
 					}
 			

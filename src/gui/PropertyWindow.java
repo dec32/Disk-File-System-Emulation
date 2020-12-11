@@ -36,7 +36,6 @@ public class PropertyWindow extends Stage{
 			icon = new Image("file:folder icon.png");
 		}else {
 			icon = new Image("file:file icon.png");
-			System.out.println("hey!");
 		}
 		
 		name.setText(di.getFullName());

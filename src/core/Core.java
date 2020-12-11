@@ -1,6 +1,5 @@
 package core;
 
-import java.awt.List;
 import java.util.ArrayList;
 
 
@@ -21,6 +20,9 @@ public class Core {
 		md("/123");
 		md("/123/456");
 		createFile("/123/456/abc.ef", "");//空串的意思是, 不选择任何选项(既不是系统文件, 也不是只读)
+		openFile("/123/456/abc.ef","");
+		writeFile("/123/456/abc.ef", "ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ");
+		closeFile("/123/456/abc.ef");
 		dir("/123");
 		// 使用相对路径的命令
 		dir("456");
@@ -118,7 +120,7 @@ public class Core {
 				}
 			}
 			if (!found) {
-				System.out.println("findDirItem没有找到该文件");
+//				System.out.println("findDirItem没有找到该文件");
 				return null;// 找不到文件夹，终止方法
 			}
 		}
@@ -418,8 +420,8 @@ public class Core {
 							break;
 						}
 					}
-					System.out.println("dnum: "+write1[0]);
-					System.out.println("bnum: "+write1[1]);
+//					System.out.println("dnum: "+write1[0]);
+//					System.out.println("bnum: "+write1[1]);
 					newFile.setWrite(write1);
 
 
@@ -444,83 +446,92 @@ public class Core {
 //	      3.最后从已打开文件表中读出读指针，从这个位置上读出所需要长度，若所需长度没有读完已
 //	     经遇到文件结束符，就终止操作。实验中用“#”表示文件结束。
 
-	if (pathname.charAt(0) != '/') {
-		String temp = "/".concat(pathname);
+		if (pathname.charAt(0) != '/') {
+			String temp = "/".concat(pathname);
 
-		System.out.println("temp:  "+temp);
+//			System.out.println("temp:  " + temp);
 
-		pathname = getCurPath().concat(temp);
-		System.out.println("修改后的pathname: "+pathname);
-	}
-
-
-
-	DirItem item = findDirItem(pathname);
-	boolean isopen = false;
-
-	int flag = 0;
-	OpenedFile op=null;
-	for (OpenedFile of: openedFileList) {
-		if (of.getPathname().equals(pathname)) {// 已经打开
-			isopen = true;
-			flag = of.getFlag();
-			op=of;
-			break;
+			pathname = getCurPath().concat(temp);
+//			System.out.println("修改后的pathname: " + pathname);
 		}
-	}
-	if (!isopen) {
-		String opt="r";
-		if(!openFile(pathname,opt))  {System.out.println("文件不存在，读取文件失败");return;};
-		flag=0;
-	}
-	// 已经打开：
-	else if (flag == 1) {
-		System.out.println("文件类型为写，不允许读");
-		return;
-	}
-	for (OpenedFile of: openedFileList) {
-		if (of.getPathname().equals(pathname)) {// 已经打开
-			op=of;
-			break;
+
+		DirItem item = findDirItem(pathname);
+		boolean isopen = false;
+
+		int flag = 0;
+		OpenedFile op = null;
+		for (OpenedFile of : openedFileList) {
+			if (of.getPathname().equals(pathname)) {// 已经打开
+				isopen = true;
+				flag = of.getFlag();
+				op = of;
+				break;
+			}
 		}
-	}
-	/*这里写第三步*/
-			 byte[] fat=readFat();
+		if (!isopen) {
+			String opt = "r";
+			if (!openFile(pathname, opt)) {
+				System.out.println("文件不存在，读取文件失败");
+				return;
+			}
+			;
+			flag = 0;
+		}
+		// 已经打开：
+		else if (flag == 1) {
+			System.out.println("文件类型为写，不允许读");
+			return;
+		}
+		for (OpenedFile of : openedFileList) {
+			if (of.getPathname().equals(pathname)) {// 已经打开
+				op = of;
+				break;
+			}
+		}
+		/* 这里写第三步 */
+		byte[] fat = readFat();
 
-			 int dnum = op.getRead()[0];
-			 int bnum = op.getRead()[1];//确定两个读指针
+		int dnum = op.getRead()[0];
+		int bnum = op.getRead()[1];// 确定两个读指针
 
-			 //把文件需要读的那一块读出来
+		// 把文件需要读的那一块读出来
 
-			 byte[] block = disk.read(dnum);
+		byte[] block = disk.read(dnum);
 
-			 for(int i = 0;i< length;i++){
-			  if(bnum < 64)
-			  {//当前块还没读完
-			    char curChar=(char)(int)block[bnum];
-				  if(curChar!='#')
-			   {System.out.print(curChar);
-			   bnum++;}
-			   else { return;}
+		for (int i = 0; i < length; i++) {
+			if (bnum < 64) {// 当前块还没读完
+				char curChar = (char) (int) block[bnum];
+				if (curChar != '#') {
+					System.out.print(curChar);
+					bnum++;
+				} else {
+					return;
+				}
 
-			  }
-			  else
-			  {
-			   //寻找文件的下一块
+			} else {
+				// 寻找文件的下一块
 				dnum = fat[dnum];
-			   if(dnum==-1) {return;}
-			   bnum = 0;
-			   char curChar=(char)(int)block[bnum];
-				  if(curChar!='#')
-			   {System.out.print(curChar);
-			   bnum++;}
-			   else { return;}
+				if (dnum == -1) {
+					return;
+				}
+				block = disk.read(dnum);
+				bnum = 0;
+				char curChar = (char) (int) block[bnum];
+				if (curChar != '#') {
+					System.out.print(curChar);
+					bnum++;
+				} else {
+					return;
+				}
 
-
-			  }
-			                           }
-			 //更新文件的两个读指针dnum和bnum
-
+			}
+		}
+		System.out.println();
+		// 更新文件的两个读指针dnum和bnum
+		int[] read = new int[2];
+		read[0] = dnum;
+		read[1] = bnum;
+		op.setRead(read);
 
 	}
 
@@ -734,7 +745,7 @@ public class Core {
 		if(!pathname.startsWith("/")){
 			pathname = toAbsPath(pathname);//如果传进来的路径是相对路径，那么把他转成绝对路径
 		}
-		System.out.println("deleting file: "+pathname);
+//		System.out.println("deleting file: "+pathname);
 		//判断文件是否打开
 		boolean opened = false;	
 		for(OpenedFile op:openedFileList){
@@ -800,7 +811,7 @@ public class Core {
 				return;
 			}
 
-		}else {
+		} else {
 			// 若提供的是相对路径, 则父目录就是当前打开的目录
 			flag1 = true;
 			superDirItem = curDirItem;
@@ -808,63 +819,62 @@ public class Core {
 		disk.read(superDirItem.getBlockNum());
 		Util.copyBlock(disk.getReader(), superDir);
 
-
-		//如果父目录存在,需要判断父目录下是否存在该子文件
+		// 如果父目录存在,需要判断父目录下是否存在该子文件
 		for (int i = 0; i < 8; i++) {
 			di = Util.getDirItemAt(superDir, i);// 从父目录中取出第i个目录项
 			if (di.getName().equals(filename) && di.getType().equals(type) && !di.isDir()) {
 				flag = true;
-				bytes = di.getBytes();  //获取该子文件的目录项
+				bytes = di.getBytes(); // 获取该子文件的目录项
 				break;
 
 			}
 		}
 
-		if (!flag){
-			System.out.println("文件不存在！"); //由于父目录都不存在,更不可能存在父目录相对应的文件了
+		if (!flag) {
+			System.out.println("文件不存在！"); // 由于父目录都不存在,更不可能存在父目录相对应的文件了
 			return;
 		}
 
-
-        if(flag1 && flag){
-        	//需要修改相对路径pathname,转为绝对路径,防止再次打开
+		if (flag1 && flag) {
+			// 需要修改相对路径pathname,转为绝对路径,防止再次打开
 			String temp = "/".concat(pathname);
 			pathname = curPath.concat(temp);
 
-        }
-      //判断文件是否打开
-      		boolean open = false;
-      		OpenedFile ofToWrite=null;
-      		for (OpenedFile of : openedFileList) {
-      			if (of.getPathname().equals(pathname)) {// 已经打开
-      				open = true;
-      				break;
-      			}
-      		}
-      		if(open) {System.out.println("文件已打开，操作失败");return;}
-      	//获取文件的块号列表
-    int[] blockNums = getBlockNums(findDirItem(pathname));
-	
-	
-    byte[] fat=readFat();
+		}
+		// 判断文件是否打开
+		boolean open = false;
+		OpenedFile ofToWrite = null;
+		for (OpenedFile of : openedFileList) {
+			if (of.getPathname().equals(pathname)) {// 已经打开
+				open = true;
+				break;
+			}
+		}
+		if (open) {
+			System.out.println("文件已打开，操作失败");
+			return;
+		}
+		// 获取文件的块号列表
+		int[] blockNums = getBlockNums(findDirItem(pathname));
 
-	 //把文件一块一块地读出来
-     for(int n=0;n<blockNums.length;n++)
-	 {   int BlockNum=blockNums[n];
-    	 byte[] block = disk.read(BlockNum);
-	     System.out.println("文件第"+n+"块内容为:");
-	     for(int i=0;i<64;i++)
-	     {
-	    	 char curChar=(char)(int)block[i];
-	    	 if(curChar!='#') {System.out.print(curChar);}
-	    	 else { return ;}
-	     }
-	    System.out.println("");
-	 
-	 
-	 }
-	
-	
+		byte[] fat = readFat();
+
+		// 把文件一块一块地读出来
+		for (int n = 0; n < blockNums.length; n++) {
+			int BlockNum = blockNums[n];
+			byte[] block = disk.read(BlockNum);
+			System.out.println("文件第" + n + "块内容为:");
+			for (int i = 0; i < 64; i++) {
+				char curChar = (char) (int) block[i];
+				if (curChar != '#') {
+					System.out.print(curChar);
+				} else {
+					return;
+				}
+			}
+			System.out.println("");
+		}
+		System.out.println();
 	
 	}
 
@@ -1012,7 +1022,7 @@ public class Core {
 
 	public void rd(String pathname) {
 		if(pathname.equals("/")){
-			System.out.println("删掉根目录干甚么你这个疯子");
+			System.out.println("无法删除根目录");
 			return;
 		}
 		if(!pathname.startsWith("/")){
@@ -1020,7 +1030,7 @@ public class Core {
 		}
 		DirItem diToRemove = findDirItem(pathname);
 		if(diToRemove == null){
-			System.out.println("dir does not exit");
+			System.out.println("目录不存在");
 			return;
 		}
 		byte[] dirToRemove = disk.read(diToRemove.getBlockNum());

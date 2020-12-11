@@ -34,6 +34,7 @@ public class ConsoleWindow extends Stage {
 		this.setMinWidth(100);
 			
 		output.setEditable(false);	
+		output.setWrapText(true);
 		layout.setSpacing(10);
 		layout.setAlignment(Pos.CENTER);
 		VBox.setVgrow(output, Priority.ALWAYS);
