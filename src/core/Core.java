@@ -77,7 +77,7 @@ public class Core {
 		} else if (command.equals("type")) {
 			typeFile(args[0]);
 		} else if (command.equals("change")) {
-			// i don't really know what the fuck is change
+			change(args[1],args[0]);
 		} else if (command.equals("create")) {
 			createFile(args[0], opts);// create 命令只有一个参数, 路径. 选项会有-r和-s
 		} else if (command.equals("md")) {
@@ -878,8 +878,43 @@ public class Core {
 	
 	}
 
-	public void change() {
-
+	public void change(String pathname,String opts) {
+//		首先查找该文件，如果不存在，结束；如果存在，检查文件是否打开，
+//		打开不能改变属性；没有打开，根据要求改变目录项中属性值。
+		pathname=toAbsPath(pathname);
+		if(findDirItem(pathname)==null) {
+		              
+		    System.out.println("文件不存在，无法改变属性，操作失败");
+		}
+		
+		// 判断文件是否打开
+		boolean open = false;
+		OpenedFile ofToWrite = null;
+		for (OpenedFile of : openedFileList) {
+			if (of.getPathname().equals(pathname)) {// 已经打开
+				open = true;
+				break;
+			}
+		}
+		if (open) {
+			System.out.println("文件已打开，不能修改属性，操作失败");
+			return;
+		}
+		
+		boolean ro=false;
+		boolean sys=false;
+		if(opts.contains("r")) {
+			ro=true;
+		}
+		if(opts.contains("s")) {
+		 sys=true; 
+		}
+		DirItem fileToModify=findDirItem(pathname);
+	    fileToModify.setProperty(ro, sys, fileToModify.isDir());
+	    
+	
+	
+	
 	}
 
 	public boolean md(String pathname) {
