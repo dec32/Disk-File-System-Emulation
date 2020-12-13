@@ -77,7 +77,7 @@ public class Core {
 		} else if (command.equals("type")) {
 			typeFile(args[0]);
 		} else if (command.equals("change")) {
-			change(args[1],args[0]);
+			change(args[0],opts);
 		} else if (command.equals("create")) {
 			createFile(args[0], opts);// create 命令只有一个参数, 路径. 选项会有-r和-s
 		} else if (command.equals("md")) {
@@ -912,8 +912,19 @@ public class Core {
 		DirItem fileToModify=findDirItem(pathname);
 	    fileToModify.setProperty(ro, sys, fileToModify.isDir());
 	    
-	
-	
+	    DirItem superDirItem = findSuperDirItem(pathname);
+	    byte[] superDir = disk.read(superDirItem.getBlockNum());
+	    for (int i = 0; i < 8; i++) {
+	    	DirItem di = Util.getDirItemAt(superDir, i);
+	    	if(di.getFullName().equals(fileToModify.getFullName())) {
+	    		for (int j = 0; j < 8; j++) {
+					superDir[i*8+j] = fileToModify.getBytes()[j];
+				}
+	    		break;
+	    	}
+		}
+	    disk.write(superDirItem.getBlockNum(),superDir);
+	    updateCurDir();
 	
 	}
 

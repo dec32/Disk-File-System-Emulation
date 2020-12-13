@@ -49,6 +49,15 @@ public class PropertyWindow extends Stage{
 			sys.setSelected(true);
 		}
 		
+		//改变checkbock的选中状态时, 立刻把状态取反, 相当于禁止了选中状态的改变(默认的效果有点难看)
+		ro.setOnAction(e->{
+			ro.setSelected(!ro.isSelected());
+		});
+		
+		sys.setOnAction(e->{
+			sys.setSelected(!sys.isSelected());
+		});
+		
 		
 		//设置窗体，安排布局
 		this.setTitle("Property");
