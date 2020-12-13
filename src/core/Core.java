@@ -277,7 +277,7 @@ public class Core {
 				int availableBlock;
 				availableBlock = Util.findAvailableBlock(disk);// 找到一个空闲块
 				di.setBlockNum(availableBlock);// 设置要占用的磁盘块
-				di.setSize(0);// 设置文件大小，初始为0字节
+				di.setSize(1);// 设置文件大小，初始为1块
 
 				Util.writeDirItem(di, superDirItem.getBlockNum(), i, disk);// 把目录项写到找到的空位之中
 				Util.writeFat(availableBlock, 255, disk);// 更新FAT
@@ -587,27 +587,11 @@ public class Core {
 		int bnum = ofToWrite.getWrite()[1];// 写指针的第1个元素表示块内地址
 		int nxtDnum;
 		int cp = 0;// contentPointer
-		int sizeIncrement = 0;
 		// 把文件的最后一块读出来
 		byte[] block = disk.read(dnum);
 
 		for (cp = 0; cp < content.length(); cp++) {
-//			if (bnum < 64) {// 如果块内指针小于64，说明当前块还没满
-//				block[bnum] = (byte) (int) content.charAt(cp);
-//				bnum++;
-//			} else {// 当前块已满，需要申请新的磁盘块
-//				sizeIncrement++;
-//				disk.write(dnum,block);// 先把已经写好的块写回磁盘
-//				nxtDnum = Util.findAvailableBlock(disk);
-//				writeFat(dnum, nxtDnum);
-//				writeFat(nxtDnum, -1);// 找到一个新的空闲块，并更新FAT
-//				dnum = nxtDnum;
-//				block = disk.read(dnum);// 把新申请的块读出来
-//				bnum = 0;
-//				block[bnum] = (byte) (int) content.charAt(cp);
-//				bnum++;
-//			}
-			
+		
 			block[bnum] = (byte) (int) content.charAt(cp);//不判断指针有没有越界，直接写字节
 			bnum++;//指针自增，然后再判断有没有越界
 			if(bnum == 64) {
@@ -623,20 +607,17 @@ public class Core {
 
 		disk.write(dnum,block);//循环结束后，还会有最后一个块没写回磁盘，所以补上
 
-
 		int[] newWriter= {dnum,bnum};
 		ofToWrite.setWrite(newWriter);//更新写指针
-		//更新文件的大小，大小的增量已经存放在sizeIncrement中
+		//更新文件的大小
 		int len=ofToWrite.getLength();
 		len+=content.length();
 		ofToWrite.setLength(len);
-
-
-
-
-
 	}
 
+	/*
+	 * TODO: 关闭文件时要更新文件大小
+	 */
 	public boolean closeFile(String pathname) {
 
 		// *1先看文件是否在已打开文件表中
@@ -645,14 +626,10 @@ public class Core {
 
 		if (pathname.charAt(0) != '/') {
 			String temp = "/".concat(pathname);
-
 //			System.out.println("temp:  "+temp);
-
 			pathname = curPath.concat(temp);
 //			System.out.println("修改后的pathname: "+pathname);
 		}
-
-
 //
 		DirItem item = findDirItem(pathname);
 		boolean isopen = false;
@@ -673,7 +650,6 @@ public class Core {
 //		if (flag == 0) {
 ////			System.out.println("文件没有经过写操作"); //直接将文件信息从已打开目录表删除就行
 //		}
-
 
 		// flag==1,文件经过修改，需要1.修改目录项--即文件总长度，2.追加文件结束符‘#’
 		if (flag == 1) { // 文件经过写操作，需遍历找到文件所占用总盘块数，修改总盘快数
@@ -718,8 +694,25 @@ public class Core {
 			block[write[1]]='#';
 			disk.write(write[0],block);
 
-			//////
-
+			//更新目录项里记录的文件大小
+			DirItem diToUpdate = findDirItem(pathname);
+			diToUpdate.setSize(of.getLength()/64 + 1);
+			DirItem superDirItem = findSuperDirItem(pathname);
+			byte[] superDir = disk.read(superDirItem.getBlockNum());
+				for(int k = 0; k < 8 ; k++){
+				DirItem di = Util.getDirItemAt(superDir,k);
+				if(di.getFullName().equals(diToUpdate.getFullName())){
+					//把父目录中的目录项销毁
+					for(int j = 0; j < 8; j++){
+						superDir[k*8+j] = diToUpdate.getBytes()[j];
+					}
+					//把父目录写回磁盘
+					disk.write(findSuperDirItem(pathname).getBlockNum(),superDir);
+					//再把父目录读回来
+					updateCurDir();
+					break;
+				}
+			}
 
 		}
 
@@ -1107,7 +1100,6 @@ public class Core {
 				updateCurDir();
 				break;
 			}
-
 		}
 	}
 
