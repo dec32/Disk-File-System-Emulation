@@ -13,7 +13,6 @@ public class Core {
 
 	public Core() {
 		disk = new Disk();
-		disk.createDisk("D:/test.dsk");
 
 		// 使用绝对路径的命令
 		dir("/");
@@ -318,7 +317,7 @@ public class Core {
 			// 若提供的是绝对路径, 则需要查找父目录
 			superDirItem = findSuperDirItem(pathname);
 			if (superDirItem == null) {
-//				System.out.println("父目录不存在");
+				System.out.println("父目录不存在");
 				return false;
 			}
 
@@ -355,11 +354,7 @@ public class Core {
 
         if(flag1 && flag){
         	//需要修改相对路径pathname,转为绝对路径,防止再次打开
-			String temp = "/".concat(pathname);
-
-//			System.out.println("temp:  "+temp);
-
-			pathname = curPath.concat(temp);
+			pathname = toAbsPath(pathname);
 //			System.out.println("修改后的pathname: "+pathname);
         }
 		boolean is_open = false;
@@ -625,10 +620,7 @@ public class Core {
 		// *3如果flag==1，修改目录项，从已文件表中删除对应项
 
 		if (pathname.charAt(0) != '/') {
-			String temp = "/".concat(pathname);
-//			System.out.println("temp:  "+temp);
-			pathname = curPath.concat(temp);
-//			System.out.println("修改后的pathname: "+pathname);
+			pathname = toAbsPath(pathname);		
 		}
 //
 		DirItem item = findDirItem(pathname);

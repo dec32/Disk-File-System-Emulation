@@ -13,7 +13,8 @@ public class Disk {
 	private File f;
 	
 	public Disk() {
-
+		this.f = new File("D:/test.dsk");
+		createDisk();
 	}
 	
 	public Disk(String pathname) {
@@ -21,12 +22,29 @@ public class Disk {
 		this.f = new File(pathname);
 	}
 	
-	//新建一个模拟文件
-	public void createDisk(String pathname) {		
+	public void createDisk() {
+		
+//		try {
+//			if(!f.exists()) {
+//				f.createNewFile();
+//				//用一个64B的字节数组表示一个全0块
+//				byte[] emptyBlock = new byte[64];
+//				for (int i = 0; i < emptyBlock.length; i++) {
+//					emptyBlock[i] = 0;		
+//				}
+//				
+//				//磁盘有128个块，写128次
+//				FileOutputStream fos = new FileOutputStream(f);
+//				for (int i = 0; i < 128; i++) {
+//					fos.write(emptyBlock);
+//				}
+//			}
+//		} catch (Exception e) {
+//			e.printStackTrace();
+//		}
+		
 		try {
-			f = new File(pathname);
 			f.createNewFile();
-					
 			//用一个64B的字节数组表示一个全0块
 			byte[] emptyBlock = new byte[64];
 			for (int i = 0; i < emptyBlock.length; i++) {
@@ -38,9 +56,8 @@ public class Disk {
 			for (int i = 0; i < 128; i++) {
 				fos.write(emptyBlock);
 			}
-		} catch (IOException e1) {
-			// TODO Auto-generated catch block
-			e1.printStackTrace();
+		} catch (Exception e) {
+			e.printStackTrace();
 		}
 		
 	}
