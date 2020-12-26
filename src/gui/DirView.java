@@ -47,10 +47,11 @@ public class DirView extends ListView<DirViewItem>{
 			this.getItems().add(new DirViewItem(di));
 		}	
 		
-		//设置项目的双击监听
+		
 		this.setOnMouseClicked(e->{
-			if(e.getButton() == MouseButton.PRIMARY && e.getClickCount() == 2) {
-				DirViewItem dvi = this.getSelectionModel().getSelectedItem();
+			//设置项目的双击监听
+			DirViewItem dvi = this.getSelectionModel().getSelectedItem();
+			if(e.getButton() == MouseButton.PRIMARY && e.getClickCount() == 2) {			
 				if(dvi.getDi().isDir()) {
 					cw.execute("dir "+dvi.getDi().getFullName());
 					mw.update();
@@ -58,9 +59,15 @@ public class DirView extends ListView<DirViewItem>{
 					cw.execute("type "+dvi.getDi().getFullName());
 					mw.update();
 				}
+			}else if(e.getButton() == MouseButton.SECONDARY && e.getClickCount() ==1) {
+				//设置右键菜单的监听
+				this.setContextMenu(new DirViewItemMenu(dvi.getDi()));
 			}
 			
+			
 		});
+		
+		
 		
 		this.refresh();
 	}

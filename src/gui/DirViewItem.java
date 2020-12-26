@@ -20,8 +20,6 @@ public class DirViewItem extends Label{
 		}else {
 			this.setGraphic(new ImageView(new Image("file:file icon.png")));
 		}
-		//增加一个右键菜单
-		this.setContextMenu(new DirViewItemMenu(di));
 	}
 	
 	//getters & setters
