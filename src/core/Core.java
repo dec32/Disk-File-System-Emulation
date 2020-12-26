@@ -856,18 +856,17 @@ public class Core {
 		for (int n = 0; n < blockNums.length; n++) {
 			int BlockNum = blockNums[n];
 			byte[] block = disk.read(BlockNum);
-			System.out.println("文件第" + n + "块内容为:");
+//			System.out.println("文件第" + n + "块内容为:");
 			for (int i = 0; i < 64; i++) {
 				char curChar = (char) (int) block[i];
 				if (curChar != '#') {
 					System.out.print(curChar);
 				} else {
-					return;
+					break;
 				}
 			}
-			System.out.println("");
 		}
-		System.out.println();
+		System.out.println("");
 	
 	}
 
