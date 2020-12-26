@@ -15,6 +15,7 @@ import javafx.scene.control.TextField;
 import javafx.scene.input.KeyCode;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
+import javafx.scene.text.Font;
 import javafx.stage.Stage;
 
 public class ConsoleWindow extends Stage {
@@ -35,6 +36,9 @@ public class ConsoleWindow extends Stage {
 			
 		output.setEditable(false);	
 		output.setWrapText(true);
+
+		output.setFont(Font.font("courier new", 16));
+		input.setFont(Font.font("courier new", 16));
 		layout.setSpacing(10);
 		layout.setAlignment(Pos.CENTER);
 		VBox.setVgrow(output, Priority.ALWAYS);
