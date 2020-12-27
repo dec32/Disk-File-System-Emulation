@@ -161,7 +161,7 @@ public class Core {
 		disk.read(curDirItem.getBlockNum());
 		Util.copyBlock(disk.getReader(), curDir);
 	}
-	
+
 	//读取fat
 	private byte[] readFat() {
 		byte[] fat = new byte[128];
@@ -213,7 +213,7 @@ public class Core {
 		}
 		return blockNums;
 	}
-	
+
 	//把指定块的内容擦除
 	private void wipeBlock(int blockNum) {
 		byte[] emptyBlock= new byte[64];
@@ -317,7 +317,7 @@ public class Core {
 			// 若提供的是绝对路径, 则需要查找父目录
 			superDirItem = findSuperDirItem(pathname);
 			if (superDirItem == null) {
-				System.out.println("父目录不存在");
+				System.out.println("文件不存在！");
 				return false;
 			}
 
@@ -365,7 +365,7 @@ public class Core {
 			int property = bytes[5]; //获取DirItem目录项的第5个字节，即属性字节
 			// byte[] bytes = di.getBytes();
 			if (property % 2 == 1 && !opts.contains("r")) { // 最后1位是1,该文件是只读文件;操作类型不是r  :说明要写只读文件
-				System.out.println("写只读文件，文件打开错误！");
+				System.out.println("写只读文件错误！");
 				return false;
 			} else {
 
@@ -422,7 +422,7 @@ public class Core {
 
 
 					openedFileList.add(newFile);
-
+					System.out.println("文件打开成功！");
 				}
 
 //				System.out.println("file opened");
@@ -586,7 +586,7 @@ public class Core {
 		byte[] block = disk.read(dnum);
 
 		for (cp = 0; cp < content.length(); cp++) {
-		
+
 			block[bnum] = (byte) (int) content.charAt(cp);//不判断指针有没有越界，直接写字节
 			bnum++;//指针自增，然后再判断有没有越界
 			if(bnum == 64) {
@@ -620,7 +620,7 @@ public class Core {
 		// *3如果flag==1，修改目录项，从已文件表中删除对应项
 
 		if (pathname.charAt(0) != '/') {
-			pathname = toAbsPath(pathname);		
+			pathname = toAbsPath(pathname);
 		}
 //
 		DirItem item = findDirItem(pathname);
@@ -635,7 +635,7 @@ public class Core {
 			}
 		}
 		if (!isopen) {
-			System.out.println("文件之前没有打开，无需关闭");
+			System.out.println("文件未打开");
 			return false;
 		}
 
@@ -718,7 +718,7 @@ public class Core {
 				break;
 			}
 		}
-		System.out.println("文件关闭");
+		System.out.println("文件关闭成功！");
 		return true;
 
 
@@ -732,7 +732,7 @@ public class Core {
 		}
 //		System.out.println("deleting file: "+pathname);
 		//判断文件是否打开
-		boolean opened = false;	
+		boolean opened = false;
 		for(OpenedFile op:openedFileList){
 			if(op.getPathname().equals(pathname)){
 				opened = true;
@@ -777,7 +777,7 @@ public class Core {
 //		显示文件内容首先要找到该文件的目录登记项，如果文件不存在，指令执行失败；如果
 //		存在，查看文件是否打开，打开则不能显示文件内容；若没有打开，从目录中取出文件的起
 //		始盘块号，一块一块显示文件内容。
-		
+
 		boolean flag = false;
 		// 查找父目录中有没有该文件
 		DirItem di = null;
@@ -859,7 +859,7 @@ public class Core {
 			}
 		}
 		System.out.println("");
-	
+
 	}
 
 	public void change(String pathname,String opts) {
@@ -867,10 +867,10 @@ public class Core {
 //		打开不能改变属性；没有打开，根据要求改变目录项中属性值。
 		pathname=toAbsPath(pathname);
 		if(findDirItem(pathname)==null) {
-		              
+
 		    System.out.println("文件不存在，无法改变属性，操作失败");
 		}
-		
+
 		// 判断文件是否打开
 		boolean open = false;
 		OpenedFile ofToWrite = null;
@@ -884,18 +884,18 @@ public class Core {
 			System.out.println("文件已打开，不能修改属性，操作失败");
 			return;
 		}
-		
+
 		boolean ro=false;
 		boolean sys=false;
 		if(opts.contains("r")) {
 			ro=true;
 		}
 		if(opts.contains("s")) {
-		 sys=true; 
+		 sys=true;
 		}
 		DirItem fileToModify=findDirItem(pathname);
 	    fileToModify.setProperty(ro, sys, fileToModify.isDir());
-	    
+
 	    DirItem superDirItem = findSuperDirItem(pathname);
 	    byte[] superDir = disk.read(superDirItem.getBlockNum());
 	    for (int i = 0; i < 8; i++) {
@@ -909,7 +909,7 @@ public class Core {
 		}
 	    disk.write(superDirItem.getBlockNum(),superDir);
 	    updateCurDir();
-	
+
 	}
 
 	public boolean md(String pathname) {
