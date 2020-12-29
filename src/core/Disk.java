@@ -13,7 +13,7 @@ public class Disk {
 	private File f;
 	
 	public Disk() {
-		this.f = new File("D:/test.dsk");
+		this.f = new File(".dsk");
 		createDisk();
 	}
 	
