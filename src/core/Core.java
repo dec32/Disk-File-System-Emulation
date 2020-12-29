@@ -1075,6 +1075,7 @@ public class Core {
 				rd(pathname +"/"+di.getFullName());
 			}
 		}
+		writeFat(diToRemove.getBlockNum(), 0);
 		DirItem superDirItem = findSuperDirItem(pathname);
 		byte[] superDir = disk.read(superDirItem.getBlockNum());
 			for(int i = 0; i < 8 ; i++){
